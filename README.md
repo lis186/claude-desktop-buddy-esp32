@@ -86,10 +86,12 @@ long-press toggles screen off, very-long-press hardware-shuts-down.
 
 Touch is supplemental — keys remain primary:
 
+- **Swipe up / down** (Normal / Pet / Info) — cycle mode (same as Key1)
+- **Swipe left / right** (clock home screen) — cycle ASCII species
 - **Approval screen** — tap upper half = approve, lower half = deny
 - **Menu / Settings / Reset** — tap a row to select+confirm in one go
 - **Info / Pet pages** — tap top-right corner to cycle pages
-- **Normal HUD** — tap bottom 32 px to scroll the transcript
+- **Normal HUD** — tap buddy = heart, bottom 32 px = scroll transcript
 
 ### Sleep & wake
 
