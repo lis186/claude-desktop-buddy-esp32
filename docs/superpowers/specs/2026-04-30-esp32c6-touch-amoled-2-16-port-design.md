@@ -261,7 +261,8 @@ consumers and is set independently per board header.
 | `BOARD_LCD_RST_VIA_PMU` | 0 | 0 | **1** | When 1, `hwInit()` resets the panel by power-cycling AXP ALDO3 instead of toggling `PIN_LCD_RESET`. 2.16 has no LCD_RST GPIO; this is its reset path. |
 | `BOARD_AXP_PWRON_4S_OFF` | 0 | 0 | **1** | When 1, `powerInit()` writes AXP regs 0x22/0x27 to enable 4 s PWRON-hold hardware power-off. Default 0 keeps AXP defaults intact on 1.8 / 1.75C. |
 | `BOARD_BTN_THIRD` | 0 | 0 | **1** | Whether a third dedicated key (BOOT) feeds menu shortcut. |
-| `BOARD_BTN_PWR_ACTIVE_HIGH` | 0 | 0 | **1** | A-button active level (PWR via MOSFET inverter). |
+| `BOARD_KEY1_ACTIVE_HIGH` | 0 | 0 | **1** | Active level of `PIN_KEY1` (the primary GPIO button). 2.16 reads PWR through the BSS138 inverter and the GPIO is HIGH when pressed. |
+| `BOARD_HAS_KEY2` | 0 | 0 | **1** | When 1, `s_b` is populated by a second GPIO key (`PIN_KEY2`, active-low). When 0, `s_b` continues to come from AXP PEK via `scanAxp()` (existing 1.8 / 1.75C path). Avoids double-firing on 2.16 where PWR is wired to both GPIO18 and AXP PWRON. |
 
 ---
 
@@ -313,9 +314,10 @@ consumers and is set independently per board header.
 #define PIN_QMI_INT2  17
 
 // Three physical keys
-#define PIN_KEY_PWR   18   // = A button. Active-HIGH (BSS138 inverts PWRON).
-#define PIN_KEY_IO10  10   // = B button. Active-low.
-#define PIN_KEY_BOOT  9    // = menu shortcut. Active-low. Also boot-mode strap.
+// Naming follows existing input.cpp convention: KEY1 → s_a, KEY2 → s_b.
+#define PIN_KEY1      18   // PWR silkscreen. Active-HIGH via BSS138 inverter. Also AXP PWRON.
+#define PIN_KEY2      10   // IO10 silkscreen. Active-low.
+#define PIN_KEY_BOOT  9    // BOOT silkscreen. Active-low. Synthesises BTN_A_LONG_PRESS.
 
 // Capability flags
 #define BOARD_HAS_PSRAM            0
@@ -328,9 +330,10 @@ consumers and is set independently per board header.
 #define BOARD_DISPLAY_CO5300       0
 #define BOARD_DISPLAY_LETTERBOX    0
 #define BOARD_TOUCH_CST92XX        1
-#define BOARD_BTN_SWAP_AB          1
+#define BOARD_BTN_SWAP_AB          0
 #define BOARD_BTN_THIRD            1
-#define BOARD_BTN_PWR_ACTIVE_HIGH  1
+#define BOARD_KEY1_ACTIVE_HIGH     1
+#define BOARD_HAS_KEY2             1
 
 // Credits page
 #define BOARD_MODEL_LINE1  "Waveshare ESP32-C6"
@@ -403,29 +406,39 @@ and re-paints the black border + canvas on the first frame.
 
 ### Buttons
 
-A new pair of read helpers in `hw/input.cpp`:
+`hw/input.cpp::scanKey1()` reads `PIN_KEY1` with active level controlled by
+`BOARD_KEY1_ACTIVE_HIGH`:
 
 ```c
-static bool readKeyA() {
-#if BOARD_BTN_PWR_ACTIVE_HIGH
-  return digitalRead(PIN_KEY_PWR) == HIGH;
+static void scanKey1() {
+#if BOARD_KEY1_ACTIVE_HIGH
+  bool pressed = digitalRead(PIN_KEY1) == HIGH;
 #else
-  return digitalRead(PIN_KEY1) == LOW;
+  bool pressed = digitalRead(PIN_KEY1) == LOW;
 #endif
-}
-
-static bool readKeyB() {
-#if BOARD_BTN_PWR_ACTIVE_HIGH
-  return digitalRead(PIN_KEY_IO10) == LOW;
-#else
-  // existing AXP PEK / KEY2 path
-#endif
+  // ...existing edge-detect logic, populates s_a...
 }
 ```
 
-`BOARD_BTN_SWAP_AB` (already 1 on 1.75C and 2.16) flips A/B labelling at the
-event-emit site, preserving "primary action on the user-facing right side"
-across boards.
+A new `scanKey2()`, gated by `BOARD_HAS_KEY2`, populates `s_b` from a second
+GPIO key (active-low):
+
+```c
+#if BOARD_HAS_KEY2
+static void scanKey2() {
+  bool pressed = digitalRead(PIN_KEY2) == LOW;
+  // ...same edge-detect, populates s_b...
+}
+#endif
+```
+
+`scanAxp()` (existing) is gated `#if !BOARD_HAS_KEY2` so on 2.16 the AXP PEK
+events do not also fire `s_b` (avoiding double events from a single PWR
+press, since PWR is wired to both GPIO18 and AXP PWRON).
+
+`BOARD_BTN_SWAP_AB` stays at the `hwBtnA()` / `hwBtnB()` accessors
+unchanged. On 2.16 the scanning already deposits the right values in `s_a`
+/ `s_b`, so `BOARD_BTN_SWAP_AB=0`.
 
 The third key is gated:
 
@@ -656,15 +669,17 @@ on the relevant boards before proceeding.
    `BOARD_LCD_RST_VIA_PMU=0`,
    `BOARD_AXP_PWRON_4S_OFF=0`,
    `BOARD_BTN_THIRD=0`,
-   `BOARD_BTN_PWR_ACTIVE_HIGH=0`.
+   `BOARD_KEY1_ACTIVE_HIGH=0`,
+   `BOARD_HAS_KEY2=0`.
 7. Edit shared `.cpp` files to read the new flags (no behavior change on
    1.8 / 1.75C because their flags default to the existing values):
    - `hw/display.cpp` non-letterbox branch: add `OFFSET_X/Y` to blit
      coordinates.
-   - `hw/input.cpp`: subtract `OFFSET_X/Y` in touch→canvas remap; add
-     `readKeyA`/`readKeyB` helpers branching on
-     `BOARD_BTN_PWR_ACTIVE_HIGH`; add `scanBootKey()` gated by
-     `BOARD_BTN_THIRD`.
+   - `hw/input.cpp`: subtract `OFFSET_X/Y` in touch→canvas remap; gate
+     `scanKey1()` polarity on `BOARD_KEY1_ACTIVE_HIGH`; add `scanKey2()`
+     gated by `BOARD_HAS_KEY2` (and gate the existing `scanAxp()` with
+     `#if !BOARD_HAS_KEY2` to keep `s_b` from double-firing); add
+     `scanBootKey()` gated by `BOARD_BTN_THIRD`.
    - `hw/audio.cpp`: gate PA enable on `BOARD_HAS_PA_CTRL`.
    - `hw/hw.cpp`: gate LCD reset path on `BOARD_LCD_RST_VIA_PMU` (PMU
      ALDO3 power-cycle vs existing `hwExpanderResetSequence()`).
