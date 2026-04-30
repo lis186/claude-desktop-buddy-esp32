@@ -61,6 +61,18 @@
 // External PCF85063 RTC @ 0x51 on the I2C bus
 #define BOARD_HAS_PCF85063  1
 
+// New flags introduced by 2.16 port. Defaults preserve current 1.8 behavior.
+#define BOARD_HAS_PSRAM            1
+#define BOARD_DISPLAY_OFFSET_X     0
+#define BOARD_DISPLAY_OFFSET_Y     0
+#define BOARD_HAS_PA_CTRL          1
+#define BOARD_HAS_AXP2101          1
+#define BOARD_LCD_RST_VIA_PMU      0
+#define BOARD_AXP_PWRON_4S_OFF     0
+#define BOARD_BTN_THIRD            0
+#define BOARD_KEY1_ACTIVE_HIGH     0
+#define BOARD_HAS_KEY2             0
+
 // Credits-page hardware identification (two short lines).
 #define BOARD_MODEL_LINE1  "Waveshare ESP32-S3"
 #define BOARD_MODEL_LINE2  "Touch AMOLED 1.8"
