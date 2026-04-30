@@ -89,6 +89,7 @@
 #define BOARD_HAS_PSRAM            1
 #define BOARD_DISPLAY_OFFSET_X     0
 #define BOARD_DISPLAY_OFFSET_Y     0
+#define BOARD_DISPLAY_SCALE        1
 #define BOARD_HAS_PA_CTRL          1
 #define BOARD_HAS_AXP2101          1
 #define BOARD_LCD_RST_VIA_PMU      0

@@ -157,12 +157,12 @@ static void scanTouch() {
       s_tp.x = tx;
       s_tp.y = ty;
     #else
-      // Non-letterbox: physical → canvas via OFFSET subtract + 2× downscale.
-      // OFFSET is 0 on 1.8 (full-fill), 56/16 on 2.16 (centred 368×448 in 480×480).
+      // Non-letterbox: physical → canvas via OFFSET subtract + scale downscale.
+      // OFFSET is 0 on 1.8 (full-fill), 148/128 on 2.16 (centred 184×224 in 480×480).
       int dx = x[0] - BOARD_DISPLAY_OFFSET_X;
       int dy = y[0] - BOARD_DISPLAY_OFFSET_Y;
-      int tx = dx / 2;
-      int ty = dy / 2;
+      int tx = dx / BOARD_DISPLAY_SCALE;
+      int ty = dy / BOARD_DISPLAY_SCALE;
       if (tx < 0) tx = 0; else if (tx >= BOARD_HW_W) tx = BOARD_HW_W - 1;
       if (ty < 0) ty = 0; else if (ty >= BOARD_HW_H) ty = BOARD_HW_H - 1;
       s_tp.x = tx;
@@ -186,8 +186,8 @@ static void scanTouch() {
     s_tp.justReleased = false;
     int dx = rx - BOARD_DISPLAY_OFFSET_X;
     int dy = ry - BOARD_DISPLAY_OFFSET_Y;
-    int tx = dx / 2;
-    int ty = dy / 2;
+    int tx = dx / BOARD_DISPLAY_SCALE;
+    int ty = dy / BOARD_DISPLAY_SCALE;
     if (tx < 0) tx = 0; else if (tx >= BOARD_HW_W) tx = BOARD_HW_W - 1;
     if (ty < 0) ty = 0; else if (ty >= BOARD_HW_H) ty = BOARD_HW_H - 1;
     s_tp.x = tx;

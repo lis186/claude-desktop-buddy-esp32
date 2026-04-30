@@ -2,15 +2,17 @@
 #pragma once
 
 // Display: SH8601 480×480 rounded-square AMOLED, 2.16" diagonal.
-// 184×224 canvas → 2× integer upscale → 368×448, centred at (56, 16).
-// Rounded corners fall in the 56 px L/R black border, never clipping content.
+// 184×224 canvas blitted natively (1× scale) centred at (148, 128) in the
+// 480×480 panel. No PSRAM → no full-frame upscale buffer; QSPI bus fails
+// with per-row chained writes, so one-shot native blit is the only path.
 #define LCD_W_PHYS              480
 #define LCD_H_PHYS              480
 #define BOARD_HW_W              184
 #define BOARD_HW_H              224
 #define BOARD_SAFE_INSET        8
-#define BOARD_DISPLAY_OFFSET_X  56
-#define BOARD_DISPLAY_OFFSET_Y  16
+#define BOARD_DISPLAY_OFFSET_X  148
+#define BOARD_DISPLAY_OFFSET_Y  128
+#define BOARD_DISPLAY_SCALE     1
 
 // QSPI to SH8601 (per XiaoZhi v2.2.5 board def + schematic verification)
 #define PIN_LCD_SDIO0  1
