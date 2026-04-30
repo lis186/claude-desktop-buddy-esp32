@@ -133,7 +133,9 @@ void hwDisplayPush() {
   }
   s_gfx->draw16bitRGBBitmap(0, 0, s_frameBuf, LCD_W_PHYS, LCD_H_PHYS);
 #else
-  // 2× integer upscale, per-row (OK on SH8601's QSPI path).
+  // 2× integer upscale, per-row, with optional centring offset.
+  // OFFSET_X/Y are 0 on full-fill boards (1.8); positive on boards
+  // where the canvas is smaller than the panel (2.16 → 56/16).
   for (int y = 0; y < HW_H; y++) {
     uint16_t* row = src + y * HW_W;
     for (int x = 0; x < HW_W; x++) {
@@ -141,8 +143,9 @@ void hwDisplayPush() {
       s_lineBuf[x*2]     = c;
       s_lineBuf[x*2 + 1] = c;
     }
-    s_gfx->draw16bitRGBBitmap(0, y * 2,     s_lineBuf, LCD_W_PHYS, 1);
-    s_gfx->draw16bitRGBBitmap(0, y * 2 + 1, s_lineBuf, LCD_W_PHYS, 1);
+    int dy = y * 2 + BOARD_DISPLAY_OFFSET_Y;
+    s_gfx->draw16bitRGBBitmap(BOARD_DISPLAY_OFFSET_X, dy,     s_lineBuf, HW_W*2, 1);
+    s_gfx->draw16bitRGBBitmap(BOARD_DISPLAY_OFFSET_X, dy + 1, s_lineBuf, HW_W*2, 1);
   }
 #endif
 
