@@ -33,9 +33,9 @@ under `src/boards/`.
 | PMU | AXP2101 | same | same | same |
 | Audio | ES8311 + amp + speaker | same | ES8311 + ES7210 (output + mic codec) | same |
 | Buttons | Key1 (GPIO0 BOOT) + AXP PEK | same (physical layout swapped; corrected in firmware) | three: PWR/IO10/BOOT; PWR is active-HIGH via MOSFET inverter + AXP PWRON | three: PWR/IO18/BOOT; PWR is active-HIGH via BSS138 inverter |
-| Canvas → panel | 184×224 canvas → **2× nearest-neighbor** → 368×448 | 184×224 canvas → **1.5× bilinear** → 276×336 centred in 466×466 (black border) | 184×224 canvas → **2× nearest-neighbor** → 368×448 centred at (56, 16) in 480×480 (56 px L/R / 16 px T/B black border) | 184×224 canvas → **2× bilinear** → 368×448 letterbox at (56, 16) in 480×480 (56 px L/R / 16 px T/B black border) |
+| Canvas → panel | 184×224 canvas → **2× nearest-neighbor** → 368×448 | 184×224 canvas → **1.5× bilinear** → 276×336 centred in 466×466 (black border) | 184×224 canvas → **2× nearest-neighbor** → 368×448 centred at (56, 16) in 480×480 (56 px L/R / 16 px T/B black border) | 184×224 canvas → **2× nearest-neighbor** → 368×448 centred at (56, 16) in 480×480 (56 px L/R / 16 px T/B black border) |
 
-Internal canvas is **184×224** on all three. The 1.75C rounds the content
+Internal canvas is **184×224** on all four. The 1.75C rounds the content
 inside its circular bezel; keeping the logical canvas identical means
 UI code, fonts and all buddy rendering are completely board-agnostic.
 
@@ -74,9 +74,18 @@ LittleFS auto-formats on first boot if the partition isn't recognised.
 ### Adding another board
 
 1. Add a new header at `src/boards/board_<name>.h` declaring all
-   `PIN_*`, `BOARD_HW_W/H`, `BOARD_SAFE_INSET`, and capability flags
-   (`BOARD_HAS_TCA9554`, `BOARD_DISPLAY_CO5300`, `BOARD_DISPLAY_LETTERBOX`,
-   `BOARD_TOUCH_CST92XX`, `BOARD_HAS_PCF85063`, `BOARD_BTN_SWAP_AB`).
+   `PIN_*`, `BOARD_HW_W/H`, `BOARD_SAFE_INSET`, and capability flags —
+   the existing headers cover ~16 flags between them
+   (`BOARD_HAS_PSRAM`, `BOARD_HAS_TCA9554`, `BOARD_HAS_PCF85063`,
+   `BOARD_HAS_AXP2101`, `BOARD_HAS_PA_CTRL`, `BOARD_HAS_KEY2`,
+   `BOARD_DISPLAY_CO5300`, `BOARD_DISPLAY_LETTERBOX`,
+   `BOARD_DISPLAY_OFFSET_X/Y`, `BOARD_DISPLAY_SCALE`,
+   `BOARD_DISPLAY_PUSH_STREAMED`, `BOARD_DISPLAY_SH8601_VENDOR_INIT`,
+   `BOARD_CO5300_COL_OFFSET`, `BOARD_CO5300_MADCTL`,
+   `BOARD_LCD_RST_VIA_PMU`, `BOARD_AXP_PWRON_4S_OFF`,
+   `BOARD_AXP_ENABLE_AUX_LDOS`, `BOARD_KEY1_ACTIVE_HIGH`,
+   `BOARD_BTN_THIRD`, `BOARD_BTN_SWAP_AB`, `BOARD_TOUCH_CST92XX`).
+   Pick the values that match your board.
 2. Add a `#elif defined(BOARD_<NAME>)` branch in `src/hw/pins.h`.
 3. Add a matching `[env:<name>]` block in `platformio.ini` with the
    `-DBOARD_<NAME>` build flag.
@@ -84,7 +93,8 @@ LittleFS auto-formats on first boot if the partition isn't recognised.
 `main.cpp` and `buddies/` stay untouched.
 
 Once running you can also wipe everything from the device itself:
-**hold Key1 → settings → reset → factory reset → tap twice**.
+**hold the A button (Key1 on 1.8/1.75C, PWR on the 2.16 boards) →
+settings → reset → factory reset → tap twice**.
 
 ## Pairing
 
@@ -150,9 +160,11 @@ The board has three physical keys:
 | **Shake**                | dizzy                |             |             | —           |
 | **Face-down**            | nap (energy refills) |             |             |             |
 
+### Touch (all boards)
+
 Touch is supplemental — keys remain primary:
 
-- **Swipe up / down** — cycle through all 9 pages (Normal → Pet ×2 → Info ×6). Key1 short-press remains a coarser 3-mode jumper.
+- **Swipe up / down** — cycle through all 9 pages (Normal → Pet ×2 → Info ×6). The A button (Key1 on S3 1.8/1.75C, PWR on the 2.16 boards) short-press remains a coarser 3-mode jumper.
 - **Swipe left / right** (clock home screen) — cycle ASCII species
 - **Approval screen** — tap upper half = approve, lower half = deny
 - **Menu / Settings / Reset** — tap a row to select+confirm in one go
@@ -266,8 +278,9 @@ tools/               — generators and converters
 docs/superpowers/    — design specs + implementation plans
 ```
 
-CST92xx touch (1.75C) and PCF85063 RTC (1.8) come in through
-`SensorLib` via `platformio.ini` lib_deps rather than being vendored.
+CST92xx touch (1.75C, both 2.16 boards) and PCF85063 RTC (1.8, both
+2.16 boards) come in through `SensorLib` via `platformio.ini` lib_deps
+rather than being vendored.
 
 ## Availability
 
