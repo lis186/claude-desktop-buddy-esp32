@@ -693,6 +693,15 @@ static uint8_t _utf8SafeTake(const char* w, uint8_t take, uint8_t wlen) {
   return take;
 }
 
+// True if `s` contains any non-ASCII byte (i.e. a UTF-8 lead/continuation
+// byte). Used by drawApproval to choose between the default GFX font
+// (ASCII-only but supports setTextSize) and u8g2_font_chill7_h_cjk (renders
+// CJK but fixed at size 1). Empty strings return false.
+static bool hasUtf8(const char* s) {
+  for (; *s; s++) if ((uint8_t)*s > 127) return true;
+  return false;
+}
+
 static uint8_t wrapInto(const char* in, char out[][48], uint8_t maxRows, uint8_t width) {
   uint8_t row = 0, col = 0;
   const char* p = in;
@@ -739,22 +748,51 @@ static void drawApproval() {
   if (waited >= 10) spr.setTextColor(HOT, p.bg);
   spr.printf("approve? %lus", (unsigned long)waited);
 
-  // Size 2 only if it fits one line (~10 chars at 12px on 135px screen)
-  int toolLen = strlen(tama.promptTool);
+  // Tool name: ASCII path gets size-2 GFX (visual focus). UTF-8 path uses
+  // cubic11 (11-px CJK from Arduino_GFX's bundled fonts) — full 10k glyphs
+  // covers Traditional, unlike u8g2's tiny wqy12_chinese3 subset which
+  // dropped 執/測/試 etc. CJK font itself carries the visual weight since
+  // u8g2 fonts don't honour setTextSize.
   spr.setTextColor(p.text, p.bg);
-  spr.setTextSize(toolLen <= 10 ? 2 : 1);
-  spr.setCursor(SAFE_L, H - AREA + (toolLen <= 10 ? 14 : 18));
-  spr.print(tama.promptTool);
-  spr.setTextSize(1);
+  if (hasUtf8(tama.promptTool)) {
+    spr.setTextSize(1);
+    spr.setFont((const uint8_t*)u8g2_font_cubic11_h_cjk);
+    spr.setCursor(SAFE_L, H - AREA + 24);  // baseline for 12-px CJK
+    spr.print(tama.promptTool);
+    spr.setFont((const GFXfont*)NULL);
+  } else {
+    int toolLen = strlen(tama.promptTool);
+    spr.setTextSize(toolLen <= 10 ? 2 : 1);
+    spr.setCursor(SAFE_L, H - AREA + (toolLen <= 10 ? 14 : 18));
+    spr.print(tama.promptTool);
+    spr.setTextSize(1);
+  }
 
-  // Hint wraps at ~21 chars to two lines under the tool name
+  // Hint: same dispatch. cubic11 CJK is ~11 px wide → ~16 chars per line on
+  // W=184; split near byte 36 (12 CJK chars) keeps a safe margin. ASCII path
+  // keeps the original 21-byte slice — %.21s is safe because hasUtf8() is false.
   spr.setTextColor(p.textDim, p.bg);
-  int hlen = strlen(tama.promptHint);
-  spr.setCursor(SAFE_L, H - AREA + 34);
-  spr.printf("%.21s", tama.promptHint);
-  if (hlen > 21) {
-    spr.setCursor(SAFE_L, H - AREA + 42);
-    spr.printf("%.21s", tama.promptHint + 21);
+  if (hasUtf8(tama.promptHint)) {
+    spr.setFont((const uint8_t*)u8g2_font_cubic11_h_cjk);
+    uint8_t hlen = strlen(tama.promptHint);
+    uint8_t split = (hlen > 36) ? _utf8SafeTake(tama.promptHint, 36, hlen) : hlen;
+    char first[38];
+    memcpy(first, tama.promptHint, split); first[split] = 0;
+    spr.setCursor(SAFE_L, H - AREA + 40);
+    spr.print(first);
+    if (hlen > split) {
+      spr.setCursor(SAFE_L, H - AREA + 56);
+      spr.print(tama.promptHint + split);  // screen clips remainder if too long
+    }
+    spr.setFont((const GFXfont*)NULL);
+  } else {
+    int hlen = strlen(tama.promptHint);
+    spr.setCursor(SAFE_L, H - AREA + 34);
+    spr.printf("%.21s", tama.promptHint);
+    if (hlen > 21) {
+      spr.setCursor(SAFE_L, H - AREA + 42);
+      spr.printf("%.21s", tama.promptHint + 21);
+    }
   }
 
   if (responseSent) {
@@ -1030,6 +1068,14 @@ void loop() {
     if (tama.promptId[0]) {
       promptArrivedMs = millis();
       wake();
+      // Approval is a hard interrupt: clear nap so the display block doesn't
+      // bail at the !napping guard. If the device was face-down, the render
+      // block's forceHud path will override anyway, but resetting nap keeps
+      // accounting honest (statsOnNapEnd would otherwise misreport the gap).
+      if (napping) {
+        napping = false;
+        statsOnNapEnd((millis() - napStartMs) / 1000);
+      }
       beep(1200, 80);   // alert chirp
       // Jump to the approval screen no matter what was open — drawApproval
       // only runs from drawHUD which only runs in DISP_NORMAL.
@@ -1355,8 +1401,14 @@ void loop() {
       spr.print("no character loaded");
     }
   }
-  if (!napping && !screenOff) {
+  // Pending approval is a higher-priority interrupt than every other mode:
+  // override clock/info/pet/hud-off so the prompt always renders. Render is
+  // also gated past napping/screenOff for a prompt, since the user can't see
+  // a beep but can see a face-up flash.
+  bool forceHud = tama.promptId[0] && !responseSent;
+  if (!napping && !screenOff || forceHud) {
     if (blePasskey()) drawPasskey();
+    else if (forceHud) drawHUD();
     else if (clocking) drawClock();
     else if (displayMode == DISP_INFO) drawInfo();
     else if (displayMode == DISP_PET) drawPet();
