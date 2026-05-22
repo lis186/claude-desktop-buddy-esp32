@@ -26,8 +26,10 @@ void hwImuAccel(float* ax, float* ay, float* az) {
   s_qmi.getAccelerometer(d.x, d.y, d.z);
   *ax = d.x;
   *ay = d.y;
-  // Z is inverted vs M5StickC convention. Smoke 3 verified: screen-up
-  // gives raw d.z ≈ -0.94 on this board, but the original face-down
-  // detector wants az < -0.7 for face-DOWN. Flip the sign.
-  *az = -d.z;
+  // +Z points through the back panel on this board: screen-up reads
+  // d.z ≈ +1g, screen-down reads ≈ −1g. Keep the sign — isFaceDown()
+  // expects az < −0.7 for face-DOWN. (Earlier code flipped to −d.z based
+  // on a one-off measurement; on the 2.16 boards we have, that inverts
+  // the detector and naps the screen face-UP on a desk.)
+  *az = d.z;
 }
